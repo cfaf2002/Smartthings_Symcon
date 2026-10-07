@@ -84,10 +84,6 @@ class SmartThingsKonto extends IPSModuleStrict
                     ? $this->Translate('Signed in. The account is connected.')
                     : $this->Translate('Sign-in failed') . ': ' . $this->ReadAttributeString('LastError');
                 break;
-            case 'SignInLink':
-                // Wird vom Formular als Link geöffnet
-                echo $this->GetAuthorizeURL();
-                break;
             case 'SignOut':
                 $this->ClearTokens();
                 $this->SetStatus($this->ReadPropertyInteger('AuthMode') === self::MODE_OAUTH ? self::STATUS_SIGN_IN : 104);
@@ -125,6 +121,11 @@ class SmartThingsKonto extends IPSModuleStrict
         foreach (['OAuthPanel'] as $name) {
             $this->InjectProperty($form['elements'], $name, 'visible', $oauth);
         }
+        // Anmeldeadresse zum Kopieren (erst nach dem Speichern von Client-ID und Secret)
+        $url = $oauth ? $this->GetAuthorizeURL() : '';
+        $this->InjectProperty($form['elements'], 'AuthorizeURL', 'value', $url);
+        $this->InjectProperty($form['elements'], 'AuthorizeURL', 'visible', $url !== '');
+        $this->InjectProperty($form['elements'], 'SaveFirst', 'visible', $oauth && $url === '');
         $this->InjectProperty($form['elements'], 'Token', 'visible', !$oauth);
         $this->InjectProperty($form['elements'], 'TokenHint', 'visible', !$oauth);
         return (string) json_encode($form);
@@ -156,8 +157,12 @@ class SmartThingsKonto extends IPSModuleStrict
         if ($clientID === '') {
             return '';
         }
-        $state = bin2hex(random_bytes(12));
-        $this->WriteAttributeString('State', $state);
+        // Gleiche Adresse bis zur erfolgreichen Anmeldung (Formularfeld und Skripte passen zusammen)
+        $state = $this->ReadAttributeString('State');
+        if ($state === '') {
+            $state = bin2hex(random_bytes(12));
+            $this->WriteAttributeString('State', $state);
+        }
         return $this->Endpoint('authorize') . '?' . http_build_query([
             'client_id'     => $clientID,
             'response_type' => 'code',

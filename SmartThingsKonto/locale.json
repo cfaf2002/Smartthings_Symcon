@@ -1,7 +1,7 @@
 {
     "translations": {
         "de": {
-            "1. Sign in to SmartThings": "1. Bei SmartThings anmelden",
+            "1. Copy this address, paste it into the browser and allow access": "1. Diese Adresse kopieren, im Browser öffnen und den Zugriff erlauben",
             "2. Paste the address (or page) shown after signing in": "2. Adresse (oder Seite) einfügen, die nach dem Anmelden erscheint",
             "3. Complete sign-in": "3. Anmeldung abschließen",
             "Client ID": "Client-ID",
@@ -11,6 +11,7 @@
             "Connection works: %d devices found.": "Verbindung klappt: %d Geräte gefunden.",
             "Create at account.smartthings.com/tokens with the scopes Devices (list, see, control) and Locations (see). Only for trying it out: SmartThings now limits new tokens to 24 hours.": "Unter account.smartthings.com/tokens mit den Berechtigungen Geräte (auflisten, sehen, steuern) und Standorte (sehen) erstellen. Nur zum Ausprobieren: SmartThings begrenzt neue Tokens inzwischen auf 24 Stunden.",
             "Create the app once with the SmartThings CLI: “smartthings apps:create” → “OAuth-In App”, scopes r:devices:* x:devices:* r:locations:*, redirect URI as below. Enter the client ID and client secret here and apply the changes.": "Die App einmalig mit der SmartThings-CLI anlegen: „smartthings apps:create“ → „OAuth-In App“, Scopes r:devices:* x:devices:* r:locations:*, Redirect-URI wie unten. Client-ID und Client-Secret hier eintragen und Änderungen übernehmen.",
+            "First enter the client ID and client secret and click “Apply changes” – then the sign-in address appears here.": "Zuerst Client-ID und Client-Secret eintragen und „Änderungen übernehmen“ klicken – dann erscheint hier die Anmeldeadresse.",
             "Last error": "Letzter Fehler",
             "not signed in": "nicht angemeldet",
             "Not signed in yet.": "Noch nicht angemeldet.",

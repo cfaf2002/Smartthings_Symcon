@@ -123,7 +123,10 @@ try {
     IPS_ApplyChanges($konto);
     ok(IPS_GetInstance($konto)['InstanceStatus'] === 201, 'Mit OAuth-App: bitte anmelden (201)');
 
+    $form = (string) json_encode(json_decode(IPS_GetConfigurationForm($konto), true), JSON_UNESCAPED_SLASHES);
     $url = STH_GetAuthorizeURL($konto);
+    ok(str_contains($form, $url), 'Formular zeigt die Anmeldeadresse zum Kopieren');
+    ok(STH_GetAuthorizeURL($konto) === $url, 'Anmeldeadresse bleibt bis zur Anmeldung gleich');
     parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
     ok($q['client_id'] === 'client-123' && $q['response_type'] === 'code' && $q['scope'] === 'r:devices:* x:devices:* r:locations:*' && strlen($q['state']) === 24, 'Anmeldeadresse mit Scopes und State');
     ok(STH_Authorize($konto, 'https://httpbin.org/get?code=GOODCODE&state=falsch') === false, 'Fremder State wird abgelehnt');

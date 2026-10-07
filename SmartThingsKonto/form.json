@@ -50,10 +50,19 @@
                     "width": "520px"
                 },
                 {
-                    "type": "Button",
-                    "caption": "1. Sign in to SmartThings",
-                    "link": true,
-                    "onClick": "IPS_RequestAction($id, 'SignInLink', 0);"
+                    "type": "Label",
+                    "name": "SaveFirst",
+                    "caption": "First enter the client ID and client secret and click “Apply changes” – then the sign-in address appears here.",
+                    "visible": false
+                },
+                {
+                    "type": "ValidationTextBox",
+                    "name": "AuthorizeURL",
+                    "caption": "1. Copy this address, paste it into the browser and allow access",
+                    "save": false,
+                    "width": "100%",
+                    "value": "",
+                    "visible": false
                 },
                 {
                     "type": "ValidationTextBox",
