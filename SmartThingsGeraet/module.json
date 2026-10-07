@@ -1,0 +1,18 @@
+{
+    "id": "{0E3FCD01-8B22-4987-88AE-26B272A7EA7D}",
+    "name": "SmartThingsGeraet",
+    "type": 3,
+    "vendor": "Samsung SmartThings",
+    "aliases": [
+        "SmartThings Gerät"
+    ],
+    "parentRequirements": [
+        "{C221D232-BD8A-4398-A748-C938CC1312B3}"
+    ],
+    "childRequirements": [],
+    "implemented": [
+        "{3B83CD33-EAB3-432E-BD9E-1D540A1214D2}"
+    ],
+    "prefix": "STH",
+    "url": "https://github.com/cfaf2002/Smartthings_Symcon"
+}

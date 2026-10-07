@@ -1,0 +1,126 @@
+{
+    "elements": [
+        {
+            "type": "Select",
+            "name": "AuthMode",
+            "caption": "Sign-in",
+            "width": "520px",
+            "options": [
+                {
+                    "caption": "Own OAuth app (recommended, stays signed in)",
+                    "value": 0
+                },
+                {
+                    "caption": "Personal access token (new tokens only valid for 24 hours)",
+                    "value": 1
+                }
+            ]
+        },
+        {
+            "type": "Label",
+            "name": "AuthState",
+            "caption": ""
+        },
+        {
+            "type": "ExpansionPanel",
+            "name": "OAuthPanel",
+            "caption": "OAuth app",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "Label",
+                    "caption": "Create the app once with the SmartThings CLI: “smartthings apps:create” → “OAuth-In App”, scopes r:devices:* x:devices:* r:locations:*, redirect URI as below. Enter the client ID and client secret here and apply the changes."
+                },
+                {
+                    "type": "ValidationTextBox",
+                    "name": "ClientID",
+                    "caption": "Client ID",
+                    "width": "520px"
+                },
+                {
+                    "type": "PasswordTextBox",
+                    "name": "ClientSecret",
+                    "caption": "Client secret",
+                    "width": "520px"
+                },
+                {
+                    "type": "ValidationTextBox",
+                    "name": "RedirectURI",
+                    "caption": "Redirect URI (must match the app exactly)",
+                    "width": "520px"
+                },
+                {
+                    "type": "Button",
+                    "caption": "1. Sign in to SmartThings",
+                    "link": true,
+                    "onClick": "IPS_RequestAction($id, 'SignInLink', 0);"
+                },
+                {
+                    "type": "ValidationTextBox",
+                    "name": "AuthResponse",
+                    "caption": "2. Paste the address (or page) shown after signing in",
+                    "save": false,
+                    "width": "520px"
+                },
+                {
+                    "type": "Button",
+                    "caption": "3. Complete sign-in",
+                    "onClick": "IPS_RequestAction($id, 'Authorize', $AuthResponse);"
+                },
+                {
+                    "type": "Button",
+                    "caption": "Sign out",
+                    "confirm": "Really sign out? The devices stop updating until you sign in again.",
+                    "onClick": "IPS_RequestAction($id, 'SignOut', 0);"
+                }
+            ]
+        },
+        {
+            "type": "PasswordTextBox",
+            "name": "Token",
+            "caption": "Personal access token",
+            "width": "520px",
+            "visible": false
+        },
+        {
+            "type": "Label",
+            "name": "TokenHint",
+            "caption": "Create at account.smartthings.com/tokens with the scopes Devices (list, see, control) and Locations (see). Only for trying it out: SmartThings now limits new tokens to 24 hours.",
+            "visible": false
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "caption": "Test connection",
+            "onClick": "IPS_RequestAction($id, 'Test', 0);"
+        }
+    ],
+    "status": [
+        {
+            "code": 102,
+            "icon": "active",
+            "caption": "Connected"
+        },
+        {
+            "code": 104,
+            "icon": "inactive",
+            "caption": "Please enter the OAuth app or a token"
+        },
+        {
+            "code": 201,
+            "icon": "inactive",
+            "caption": "Please sign in to SmartThings"
+        },
+        {
+            "code": 202,
+            "icon": "error",
+            "caption": "Sign-in expired or rejected – please sign in again"
+        },
+        {
+            "code": 203,
+            "icon": "error",
+            "caption": "SmartThings not reachable"
+        }
+    ]
+}

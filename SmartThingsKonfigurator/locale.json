@@ -1,0 +1,26 @@
+{
+    "translations": {
+        "de": {
+            "Air conditioner": "Klimagerät",
+            "Device": "Gerät",
+            "Device ID": "Geräte-ID",
+            "Devices could not be loaded": "Geräte konnten nicht geladen werden",
+            "Dishwasher": "Geschirrspüler",
+            "Dryer": "Trockner",
+            "Kind": "Art",
+            "Model": "Modell",
+            "Name": "Name",
+            "Oven": "Backofen",
+            "Phone": "Handy",
+            "Phone (presence)": "Handy (Anwesenheit)",
+            "Refrigerator": "Kühlschrank",
+            "Robot cleaner": "Saugroboter",
+            "Room": "Raum",
+            "SmartThings devices": "SmartThings-Geräte",
+            "The account is not connected. Please set up the account instance first.": "Das Konto ist nicht verbunden. Bitte zuerst die Konto-Instanz einrichten.",
+            "TV": "Fernseher",
+            "Washer": "Waschmaschine",
+            "Watch": "Uhr"
+        }
+    }
+}

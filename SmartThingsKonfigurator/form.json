@@ -1,0 +1,50 @@
+{
+    "elements": [],
+    "actions": [
+        {
+            "type": "Label",
+            "caption": "",
+            "visible": false
+        },
+        {
+            "type": "Configurator",
+            "name": "Devices",
+            "caption": "SmartThings devices",
+            "rowCount": 15,
+            "add": false,
+            "delete": true,
+            "sort": {
+                "column": "name",
+                "direction": "ascending"
+            },
+            "columns": [
+                {
+                    "caption": "Name",
+                    "name": "name",
+                    "width": "auto"
+                },
+                {
+                    "caption": "Room",
+                    "name": "room",
+                    "width": "160px"
+                },
+                {
+                    "caption": "Kind",
+                    "name": "kind",
+                    "width": "160px"
+                },
+                {
+                    "caption": "Model",
+                    "name": "model",
+                    "width": "160px"
+                },
+                {
+                    "caption": "Device ID",
+                    "name": "deviceID",
+                    "width": "300px"
+                }
+            ],
+            "values": []
+        }
+    ]
+}

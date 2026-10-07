@@ -1,0 +1,411 @@
+<!--
+    Kachel für das Modul "SmartThings Gerät" (IP-Symcon HTML-SDK)
+    Copyright (c) 2026 Armin Frohwerk · MIT-Lizenz (siehe LICENSE)
+    SPDX-License-Identifier: MIT
+
+    Aufbau: Kopfzeile mit Name und online/offline · Türalarm · Fächer (Kühl-, Gefrierteil …) mit Temperatur,
+    Tür und Solltemperatur zum Verstellen · Schalter (Power Cool, Power Freeze, Eiswürfel …) · weitere Werte
+    (Akku, Anwesenheit, Verbrauch, Filter …). So passt dieselbe Kachel zu Kühlschrank, Handy und Uhr.
+    Sicherheit: Alle Werte werden per textContent gesetzt, nie als HTML.
+    Leistung:   Keine externen Dateien; die Zeitanzeige beim Türalarm läuft nur, solange die Kachel sichtbar ist.
+-->
+<style>
+    /* ===== Hausstil cfaf2002 · Kachel-Grundlage v1 (siehe STYLEGUIDE.md) =====
+       Farbschema 0 = Symcon-Design (Farben der Visualisierung), 1 = Dunkel, 2 = Hell.
+       Modulspezifisch ist nur --brand (Akzent der festen Farbschemas). */
+    :root {
+        --brand: #1580f5;
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --fg: var(--content-color, #eef3f7);
+        --accent: var(--accent-color, var(--brand));
+        --on-accent: #ffffff;
+        --muted: color-mix(in srgb, var(--fg) 65%, transparent);
+        --faint: color-mix(in srgb, var(--fg) 40%, transparent);
+        --line: color-mix(in srgb, var(--fg) 15%, transparent);
+        --surface: color-mix(in srgb, var(--fg) 7%, transparent);
+        --surface-hover: color-mix(in srgb, var(--fg) 12%, transparent);
+        --popup: var(--card-color, #232a33);
+        --ok: #34b36b;
+        --warn: #e2a63b;
+        --bad: #e5484d;
+        --info: #4b8ef0;
+        --off: #8796a5;
+        --radius-l: 14px;
+        --radius: 12px;
+        --radius-s: 8px;
+        --pill: 999px;
+        --gap: 8px;
+    }
+    html.theme-dark  { --fg: #eef3f7; --accent: var(--brand); --tile-bg: #1b2530; --popup: #232d39; }
+    html.theme-light { --fg: #1d2b36; --accent: var(--brand); --tile-bg: #e9eef3; --popup: #ffffff; }
+    html.theme-dark body, html.theme-light body { background: var(--tile-bg); }
+    html, body { font-family: var(--font); color: var(--fg); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+    /* ===== Ende Kachel-Grundlage ===== */
+
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+    body { background: transparent; }
+
+    #tile {
+        --cold: var(--info);
+        --frost: color-mix(in srgb, var(--info) 65%, var(--fg));
+        box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow: hidden auto;
+        container-type: size;
+        font-size: 13px;
+        line-height: 1.3;
+        scrollbar-width: none;
+    }
+    #tile::-webkit-scrollbar { display: none; }
+
+    .head { display: flex; align-items: center; gap: 10px; min-height: 36px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--off); flex: none; }
+    #tile.online .dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+    #tile.offline .dot { background: var(--bad); }
+    .title { flex: 1; min-width: 0; }
+    .name { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sub { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .banner { display: none; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-s); font-weight: 600; }
+    .banner svg { width: 18px; height: 18px; flex: none; }
+    #tile.alarm .alarm { display: flex; background: color-mix(in srgb, var(--bad) 22%, transparent); }
+    #tile.alarm .alarm svg { animation: blink 1.2s ease-in-out infinite; }
+    #tile.paused * { animation-play-state: paused !important; }
+    @keyframes blink { 50% { opacity: .35; } }
+    #tile.error .notice { display: flex; background: color-mix(in srgb, var(--bad) 16%, transparent); font-weight: 500; }
+
+    /* Fächer */
+    .rooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+    .rooms:empty { display: none; }
+    .room {
+        --tone: var(--cold);
+        position: relative;
+        padding: 12px;
+        border-radius: var(--radius-l);
+        background: color-mix(in srgb, var(--tone) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--tone) 28%, transparent);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+    }
+    .room.freezer { --tone: var(--frost); }
+    .room.open { --tone: var(--warn); }
+    .room-head { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .room-head span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .door { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 500; padding: 2px 8px; border-radius: var(--pill); background: var(--surface); }
+    .room.open .door { background: color-mix(in srgb, var(--warn) 35%, transparent); color: var(--fg); }
+    .door svg { width: 12px; height: 12px; }
+    .temp { font-size: 34px; font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+    .temp small { font-size: 15px; color: var(--muted); margin-left: 2px; font-weight: 400; }
+    .set { display: flex; align-items: center; gap: 6px; }
+    .set .lbl { flex: 1; min-width: 0; text-align: center; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .set .lbl b { display: block; color: var(--fg); font-size: 14px; font-weight: 600; }
+    .set .lbl { font-size: 11px; line-height: 1.2; }
+
+    button {
+        font: inherit;
+        color: inherit;
+        border: 0;
+        margin: 0;
+        padding: 0 12px;
+        background: var(--surface);
+        border-radius: var(--radius);
+        min-height: 36px;
+        min-width: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        cursor: pointer;
+        transition: background-color .15s, transform .08s;
+        touch-action: manipulation;
+    }
+    button:hover { background: var(--surface-hover); }
+    button:active { transform: scale(.95); }
+    button:disabled { opacity: .35; cursor: default; transform: none; }
+    .set button { padding: 0; width: 36px; border-radius: 50%; font-size: 18px; line-height: 1; }
+
+    /* Schalter */
+    .toggles { display: flex; flex-wrap: wrap; gap: 8px; }
+    .toggles:empty { display: none; }
+    .toggle { border-radius: var(--pill); padding: 0 14px 0 8px; }
+    .toggle .knob { width: 28px; height: 16px; border-radius: var(--pill); background: var(--line); position: relative; transition: background-color .2s; flex: none; }
+    .toggle .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--fg); transition: transform .2s; }
+    .toggle.on { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+    .toggle.on .knob { background: var(--accent); }
+    .toggle.on .knob::after { transform: translateX(12px); background: var(--on-accent); }
+
+    /* Werte */
+    .values { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+    .values:empty { display: none; }
+    .value { padding: 8px 10px; border-radius: var(--radius-s); background: var(--surface); min-width: 0; }
+    .value .k { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .value .v { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .value.ok .v { color: var(--ok); }
+    .value.warn .v { color: var(--warn); }
+    .value.bad .v { color: var(--bad); }
+
+    .empty { display: none; color: var(--muted); text-align: center; padding: 16px 0; }
+    #tile.nothing .empty { display: block; }
+    #tile.offline .rooms, #tile.offline .toggles { opacity: .5; }
+
+    /* Kleine Kachel: beim Kühlschrank nur die Fächer ohne Bedienung, sonst die Werte */
+    @container (max-height: 200px) {
+        .set, .toggles { display: none !important; }
+        #tile.has-rooms .values { display: none; }
+        .temp { font-size: 26px; }
+        .room { padding: 8px 10px; gap: 4px; }
+    }
+</style>
+
+<div id="tile">
+    <div class="head">
+        <span class="dot" aria-hidden="true"></span>
+        <div class="title">
+            <div class="name" id="name">SmartThings</div>
+            <div class="sub" id="sub"></div>
+        </div>
+    </div>
+
+    <div class="banner alarm" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg>
+        <span id="alarmText"></span>
+    </div>
+    <div class="banner notice" id="notice"></div>
+
+    <div class="rooms" id="rooms"></div>
+    <div class="toggles" id="toggles"></div>
+    <div class="values" id="values"></div>
+    <div class="empty" data-t="No values yet">No values yet</div>
+</div>
+
+<script>
+    // Hausstil: Farbschema der Kachel (0 = Symcon-Design, 1 = Dunkel, 2 = Hell)
+    function applyTheme(theme) {
+        var root = document.documentElement;
+        root.classList.toggle('theme-dark', theme === 1);
+        root.classList.toggle('theme-light', theme === 2);
+    }
+
+    (function () {
+        'use strict';
+
+        var $ = function (id) { return document.getElementById(id); };
+        var tile = $('tile');
+        var last = {};
+        var openFor = 0, openAt = 0, tick = 0;
+        var pending = {};   // Solltemperatur: lokal verstellt, noch nicht bestätigt
+
+        function t(s) {
+            return typeof window.translate === 'function' ? window.translate(s) : s;
+        }
+
+        function send(ident, value) {
+            if (typeof window.requestAction === 'function') {
+                window.requestAction(ident, value);
+            }
+        }
+
+        function el(tag, cls, text) {
+            var e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (text !== undefined) e.textContent = text;
+            return e;
+        }
+
+        function num(v, digits) {
+            return typeof v === 'number' ? v.toFixed(digits).replace('.', ',').replace('-', '−') : '–';
+        }
+
+        function doorIcon(open) {
+            var ns = 'http://www.w3.org/2000/svg';
+            var svg = document.createElementNS(ns, 'svg');
+            svg.setAttribute('viewBox', '0 0 24 24');
+            svg.setAttribute('fill', 'none');
+            svg.setAttribute('stroke', 'currentColor');
+            svg.setAttribute('stroke-width', '2');
+            var p = document.createElementNS(ns, 'path');
+            p.setAttribute('d', open ? 'M4 21V3h8l6 3v15M12 3v18M15 12h.5' : 'M5 21V3h14v18M15 12h.5');
+            svg.appendChild(p);
+            return svg;
+        }
+
+        // Solltemperatur verstellen: sofort anzeigen, kurz warten, dann einmal senden
+        var timers = {};
+        function step(room, delta, label) {
+            var cur = typeof pending[room.setIdent] === 'number' ? pending[room.setIdent] : room.set;
+            if (typeof cur !== 'number') return;
+            var next = Math.round(cur) + delta;
+            if (typeof room.min === 'number') next = Math.max(room.min, next);
+            if (typeof room.max === 'number') next = Math.min(room.max, next);
+            pending[room.setIdent] = next;
+            label.textContent = num(next, 0) + ' ' + (room.unit || '');
+            clearTimeout(timers[room.setIdent]);
+            timers[room.setIdent] = setTimeout(function () {
+                send(room.setIdent, next);
+            }, 700);
+        }
+
+        function renderRooms(list) {
+            var box = $('rooms');
+            box.textContent = '';
+            (list || []).forEach(function (r) {
+                var card = el('div', 'room' + (r.freezer ? ' freezer' : '') + (r.door === true ? ' open' : ''));
+                var head = el('div', 'room-head');
+                head.appendChild(el('span', '', r.title || ''));
+                if (r.door !== null && r.door !== undefined) {
+                    var d = el('span', 'door');
+                    d.appendChild(doorIcon(r.door));
+                    d.appendChild(document.createTextNode(t(r.door ? 'open' : 'closed')));
+                    head.appendChild(d);
+                }
+                card.appendChild(head);
+
+                var shownTemp = typeof r.temp === 'number' ? r.temp : r.set;
+            var temp = el('div', 'temp', num(shownTemp, typeof shownTemp === 'number' && Math.round(shownTemp) !== shownTemp ? 1 : 0));
+                temp.appendChild(el('small', '', r.unit || ''));
+                card.appendChild(temp);
+
+                if (r.setIdent) {
+                    // Bestätigter Wert vom Server ersetzt den lokalen
+                    if (pending[r.setIdent] === r.set) delete pending[r.setIdent];
+                    var shown = typeof pending[r.setIdent] === 'number' ? pending[r.setIdent] : r.set;
+                    var row = el('div', 'set');
+                    var minus = el('button', '', '−');
+                    var plus = el('button', '', '+');
+                    var lbl = el('div', 'lbl');
+                    lbl.appendChild(document.createTextNode(t('Target')));
+                    var b = el('b', '', num(shown, 0) + ' ' + (r.unit || ''));
+                    lbl.appendChild(b);
+                    minus.type = plus.type = 'button';
+                    minus.setAttribute('aria-label', t('Colder'));
+                    plus.setAttribute('aria-label', t('Warmer'));
+                    minus.title = t('Colder');
+                    plus.title = t('Warmer');
+                    minus.disabled = plus.disabled = last.online === false;
+                    minus.addEventListener('click', function () { step(r, -1, b); });
+                    plus.addEventListener('click', function () { step(r, 1, b); });
+                    row.appendChild(minus);
+                    row.appendChild(lbl);
+                    row.appendChild(plus);
+                    card.appendChild(row);
+                }
+                box.appendChild(card);
+            });
+        }
+
+        function renderToggles(list) {
+            var box = $('toggles');
+            box.textContent = '';
+            (list || []).forEach(function (s) {
+                var b = el('button', 'toggle' + (s.on ? ' on' : ''));
+                b.type = 'button';
+                b.setAttribute('role', 'switch');
+                b.setAttribute('aria-checked', s.on ? 'true' : 'false');
+                b.disabled = last.online === false;
+                b.appendChild(el('span', 'knob'));
+                b.appendChild(el('span', '', s.label));
+                b.addEventListener('click', function () {
+                    s.on = !s.on;
+                    b.classList.toggle('on', s.on);
+                    b.setAttribute('aria-checked', s.on ? 'true' : 'false');
+                    send(s.ident, s.on);
+                });
+                box.appendChild(b);
+            });
+        }
+
+        function renderValues(list) {
+            var box = $('values');
+            box.textContent = '';
+            (list || []).forEach(function (v) {
+                var c = el('div', 'value' + (v.tone ? ' ' + v.tone : ''));
+                c.appendChild(el('div', 'k', v.label));
+                c.appendChild(el('div', 'v', v.text));
+                box.appendChild(c);
+            });
+        }
+
+        function duration(sec) {
+            var m = Math.floor(sec / 60), s = sec % 60;
+            return m + ':' + (s < 10 ? '0' : '') + s;
+        }
+
+        function renderAlarm() {
+            var sec = openFor + (openAt ? Math.round((Date.now() - openAt) / 1000) : 0);
+            $('alarmText').textContent = t('Door open') + (sec > 0 ? ' · ' + duration(sec) : '');
+        }
+
+        function render(d) {
+            last = d || {};
+            applyTheme(d.theme);
+
+            var cls = [];
+            if (d.online === true) cls.push('online');
+            if (d.online === false) cls.push('offline');
+            if (d.doorAlarm) cls.push('alarm');
+            if (d.error) cls.push('error');
+            var nothing = !(d.compartments || []).length && !(d.toggles || []).length && !(d.values || []).length;
+            if (nothing && !d.error) cls.push('nothing');
+            if ((d.compartments || []).length) cls.push('has-rooms');
+            if (tile.classList.contains('paused')) cls.push('paused');
+            tile.className = cls.join(' ');
+
+            $('name').textContent = d.name || 'SmartThings';
+            $('sub').textContent = [d.online === false ? t('offline') : (d.online === true ? t('online') : ''), d.model || ''].filter(Boolean).join(' · ');
+            $('notice').textContent = d.error || '';
+
+            openFor = d.openFor || 0;
+            openAt = Date.now();
+            renderAlarm();
+            renderRooms(d.compartments);
+            renderToggles(d.toggles);
+            renderValues(d.values);
+        }
+
+        Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function (e) {
+            e.textContent = t(e.getAttribute('data-t'));
+        });
+
+        // Zeitanzeige beim Türalarm nur, solange die Kachel sichtbar ist
+        var inView = true;
+        function updatePause() {
+            var p = document.hidden || !inView;
+            tile.classList.toggle('paused', p);
+            clearInterval(tick);
+            if (!p) tick = setInterval(function () { if (last.doorAlarm) renderAlarm(); }, 1000);
+        }
+        document.addEventListener('visibilitychange', updatePause);
+        if (window.IntersectionObserver) {
+            new IntersectionObserver(function (entries) {
+                inView = entries[0].isIntersecting;
+                updatePause();
+            }).observe(tile);
+        }
+
+        // Wird von IP-Symcon bei UpdateVisualizationValue() aufgerufen
+        window.handleMessage = function (data) {
+            try {
+                render(typeof data === 'string' ? JSON.parse(data) : data);
+            } catch (e) {
+                console.error('SmartThings-Kachel:', e);
+            }
+        };
+
+        var initial = /*INITIAL_DATA*/null;
+        if (initial) {
+            window.handleMessage(initial);
+        }
+        updatePause();
+    })();
+</script>

@@ -1,0 +1,12 @@
+{
+    "id": "{5011D7B3-4D08-4D1D-A73F-9967FDFEF1FB}",
+    "author": "Armin Frohwerk",
+    "name": "SmartThings",
+    "url": "https://github.com/cfaf2002/Smartthings_Symcon",
+    "compatibility": {
+        "version": "8.1"
+    },
+    "version": "1.0",
+    "build": 1,
+    "date": 1791354551
+}

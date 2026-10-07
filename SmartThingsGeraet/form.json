@@ -1,0 +1,109 @@
+{
+    "elements": [
+        {
+            "type": "ExpansionPanel",
+            "caption": "Device",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "ValidationTextBox",
+                    "name": "DeviceID",
+                    "caption": "Device ID (set by the configurator)",
+                    "validate": "^[A-Za-z0-9-]*$",
+                    "width": "420px"
+                },
+                {
+                    "type": "Label",
+                    "name": "DeviceLabel",
+                    "caption": ""
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "Interval",
+                    "caption": "Update every",
+                    "suffix": "seconds",
+                    "minimum": 15,
+                    "maximum": 3600
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "DoorAlarmMinutes",
+                    "caption": "Door alarm after (0 = off; only for devices with a door)",
+                    "suffix": "minutes",
+                    "minimum": 0,
+                    "maximum": 60
+                },
+                {
+                    "type": "Label",
+                    "name": "UnmappedLabel",
+                    "caption": "",
+                    "visible": false
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Tile",
+            "items": [
+                {
+                    "type": "CheckBox",
+                    "name": "UseTile",
+                    "caption": "Own tile for the tile visualization"
+                },
+                {
+                    "type": "Select",
+                    "name": "TileTheme",
+                    "caption": "Color scheme of the tile",
+                    "options": [
+                        {
+                            "caption": "Symcon design – colors of the visualization",
+                            "value": 0
+                        },
+                        {
+                            "caption": "Dark",
+                            "value": 1
+                        },
+                        {
+                            "caption": "Light",
+                            "value": 2
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "caption": "Query now",
+            "onClick": "IPS_RequestAction($id, 'Refresh', 0);"
+        },
+        {
+            "type": "Button",
+            "caption": "Show raw data",
+            "onClick": "echo STH_GetRawStatus($id);"
+        }
+    ],
+    "status": [
+        {
+            "code": 102,
+            "icon": "active",
+            "caption": "Ready"
+        },
+        {
+            "code": 104,
+            "icon": "inactive",
+            "caption": "Please choose a device (use the SmartThings configurator)"
+        },
+        {
+            "code": 201,
+            "icon": "error",
+            "caption": "SmartThings not reachable – check the account instance"
+        },
+        {
+            "code": 202,
+            "icon": "error",
+            "caption": "Device not found in SmartThings"
+        }
+    ]
+}
