@@ -95,6 +95,9 @@ if ($what === '') {
 if ($what === 'health') {
     return $json(['deviceId' => $id, 'state' => $state['offline'] ? 'OFFLINE' : 'ONLINE']);
 }
+if ($what === 'commands' && $method === 'POST' && $state['offline']) {
+    return $json(['requestId' => 'x', 'error' => ['code' => 'ConflictError', 'message' => 'The request could not be processed.', 'details' => [['code' => 'DeviceOffline', 'message' => 'Device is offline']]]], 409);
+}
 if ($what === 'commands' && $method === 'POST') {
     $body = json_decode((string) file_get_contents('php://input'), true);
     foreach ($body['commands'] ?? [] as $c) {

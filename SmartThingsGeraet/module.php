@@ -156,7 +156,8 @@ class SmartThingsGeraet extends IPSModuleStrict
                 return;
         }
         if (!$this->Command($Ident, $Value)) {
-            throw new Exception($this->Translate('Command failed') . ': ' . $Ident);
+            // Warnung statt Abbruch: Bedienung in Kachel und Visualisierung bleibt ruhig, der Grund steht im Meldungsfenster
+            trigger_error($this->CommandError($Ident), E_USER_WARNING);
         }
     }
 
@@ -535,8 +536,35 @@ class SmartThingsGeraet extends IPSModuleStrict
                 'arguments'  => $arguments,
             ]],
         ]);
-        $this->SendDebug('Command', $component . '/' . $capability . '.' . $command . (string) json_encode($arguments) . ' → ' . ($result['Success'] ? 'OK' : $result['Error']), 0);
-        return $result['Success'];
+        $ok = $result['Success'];
+        $error = $result['Error'];
+        // Antwort 200, aber vom Gerät abgelehnt
+        $status = strtoupper((string) ($result['Data']['results'][0]['status'] ?? 'ACCEPTED'));
+        if ($ok && in_array($status, ['FAILED', 'REJECTED'], true)) {
+            $ok = false;
+            $error = $status;
+        }
+        $this->SetBuffer('CommandError', $ok ? '' : $error);
+        $this->SendDebug('Command', $component . '/' . $capability . '.' . $command . (string) json_encode($arguments) . ' → ' . ($ok ? 'OK' : $error), 0);
+        return $ok;
+    }
+
+    /**
+     * Verständliche Meldung, warum ein Befehl nicht ankam.
+     */
+    private function CommandError(string $ident): string
+    {
+        $meta = $this->Meta()[$ident] ?? null;
+        $label = $meta === null ? $ident : (($meta['prefix'] !== '' ? $this->Translate($meta['prefix']) . ': ' : '') . $this->Translate($meta['label']));
+        if ($meta === null || !$this->Writable((string) $meta['kind'])) {
+            return sprintf($this->Translate('%s cannot be switched.'), $label);
+        }
+        $reason = $this->GetBuffer('CommandError');
+        $offline = $this->VariableExists('Online') && $this->GetValue('Online') === false;
+        if ($offline || stripos($reason, 'offline') !== false) {
+            return sprintf($this->Translate('%s: SmartThings cannot reach the device (offline). A TV in standby can usually only be switched on locally, e.g. with the Samsung TV module and Wake-on-LAN.'), $label);
+        }
+        return sprintf($this->Translate('%s: command was not accepted by SmartThings (%s).'), $label, $reason !== '' ? $reason : '?');
     }
 
     // ------------------------------------------------------------------

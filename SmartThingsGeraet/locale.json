@@ -1,13 +1,15 @@
 {
     "translations": {
         "de": {
+            "%s cannot be switched.": "%s lässt sich nicht schalten.",
+            "%s: command was not accepted by SmartThings (%s).": "%s: SmartThings hat den Befehl nicht angenommen (%s).",
+            "%s: SmartThings cannot reach the device (offline). A TV in standby can usually only be switched on locally, e.g. with the Samsung TV module and Wake-on-LAN.": "%s: SmartThings erreicht das Gerät nicht (offline). Ein Fernseher im Standby lässt sich meist nur lokal einschalten, z. B. mit dem Modul Samsung TV und Wake-on-LAN.",
             "Alarm": "Alarm",
             "away": "abwesend",
             "Battery": "Akku",
             "closed": "zu",
             "Colder": "Kälter",
             "Color scheme of the tile": "Farbschema der Kachel",
-            "Command failed": "Befehl fehlgeschlagen",
             "Dark": "Dunkel",
             "Device": "Gerät",
             "Device ID (set by the configurator)": "Geräte-ID (setzt der Konfigurator)",

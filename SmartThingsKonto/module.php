@@ -397,6 +397,11 @@ class SmartThingsKonto extends IPSModuleStrict
             $error = 'HTTP ' . $code;
             if (is_array($data) && isset($data['error']['message'])) {
                 $error .= ': ' . (string) $data['error']['message'];
+                // SmartThings nennt den genauen Grund oft erst in den Details
+                $detail = (string) ($data['error']['details'][0]['message'] ?? '');
+                if ($detail !== '' && $detail !== $data['error']['message']) {
+                    $error .= ' – ' . mb_substr($detail, 0, 200);
+                }
             } elseif ($code === 429) {
                 $error .= ': ' . $this->Translate('too many requests – increase the update interval');
             }

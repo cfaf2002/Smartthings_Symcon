@@ -240,6 +240,24 @@ try {
     cloud(['offline' => true]);
     STH_Update($fridge);
     ok(value($fridge, 'Online') === false, 'Gerät offline erkannt');
+    $warnings = [];
+    set_error_handler(static function (int $no, string $str) use (&$warnings): bool {
+        if ($no === E_USER_WARNING) {
+            $warnings[] = $str;
+            return true;
+        }
+        return $no === E_DEPRECATED || $no === E_USER_DEPRECATED || str_contains($str, 'could not be found');
+    });
+    $thrown = false;
+    $before = value($fridge, 'icemaker_Switch');
+    try {
+        RequestAction(IPS_GetObjectIDByIdent('icemaker_Switch', $fridge), !$before);
+    } catch (Throwable $e) {
+        $thrown = true;
+    }
+    restore_error_handler();
+    ok(!$thrown && count($warnings) === 1 && str_contains($warnings[0], 'offline') && str_contains($warnings[0], 'Ice maker'), 'Befehl an Gerät offline: Warnung mit Grund statt Abbruch');
+    ok(value($fridge, 'icemaker_Switch') === $before, 'Variable bleibt beim abgelehnten Befehl unverändert');
     cloud(['offline' => false]);
 
     echo 'SmartThings Gerät – Handy und Uhr' . PHP_EOL;
