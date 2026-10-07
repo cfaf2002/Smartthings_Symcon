@@ -2,7 +2,7 @@
 
 [![IP-Symcon ab 8.1](https://img.shields.io/badge/IP--Symcon-ab_8.1-0b6fb3.svg)](https://www.symcon.de)
 [![Optimiert für Symcon 9.0](https://img.shields.io/badge/optimiert_f%C3%BCr-Symcon_9.0-0b6fb3.svg)](https://www.symcon.de/de/service/dokumentation/installation/migrationen/v81-v90-q1-2026/)
-[![Modul-Version 1.0 (Build 5)](https://img.shields.io/badge/Modul--Version-1.0_(Build_5)-informational.svg)](library.json)
+[![Modul-Version 1.1 (Build 6)](https://img.shields.io/badge/Modul--Version-1.1_(Build_6)-informational.svg)](library.json)
 [![Tests](https://github.com/cfaf2002/Smartthings_Symcon/actions/workflows/tests.yml/badge.svg)](https://github.com/cfaf2002/Smartthings_Symcon/actions/workflows/tests.yml)
 [![PHP 8.3 und 8.5](https://img.shields.io/badge/PHP-8.3_%7C_8.5-777bb4.svg?logo=php&logoColor=white)](https://www.php.net)
 [![SDK: IPSModuleStrict](https://img.shields.io/badge/SDK-IPSModuleStrict-success.svg)](https://www.symcon.de/de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/module/)
@@ -141,7 +141,7 @@ Abgeschaltete Fähigkeiten (`custom.disabledCapabilities`) und leere Werte bekom
 | `STH_GetDevices(int $kontoID): string` | Alle Geräte des Kontos als JSON |
 | `STH_GetAuthorizeURL(int $kontoID): string` | Anmeldeadresse |
 | `STH_Authorize(int $kontoID, string $response): bool` | Anmeldung mit Code oder Weiterleitungsadresse abschließen |
-| `STH_RefreshToken(int $kontoID): bool` | Zugang erneuern, falls er bald abläuft |
+| `STH_RefreshToken(int $kontoID): bool` | Zugang erneuern, falls er bald abläuft (intern: Ziel des stündlichen Timers, normalerweise nicht selbst aufrufen) |
 
 Bedienbare Variablen lassen sich wie gewohnt mit `RequestAction` schalten, z. B. `RequestAction($powerCoolID, true);`.
 
@@ -150,6 +150,8 @@ Bedienbare Variablen lassen sich wie gewohnt mit `RequestAction` schalten, z. B.
 - Nur HTTPS mit Zertifikatsprüfung und Zeitlimits (Verbindung 5 s, gesamt 15 s), keine Weiterleitungen.
 - Client-Secret und Token stehen in Passwortfeldern bzw. Attributen; ins Debug kommen nur Adresse, Statuscode und Dauer.
 - Anmeldung mit zufälligem `state` gegen untergeschobene Anmeldungen; die Erneuerung ist gegen gleichzeitige Aufrufe gesperrt.
+- Die vorgeschlagene Redirect-URI `https://httpbin.org/get` ist ein fremder Dienst: Der einmalige Anmeldecode geht dabei an diesen Dienst; ohne Client-Secret nützt er allein nichts und gilt nur kurz. Wer das nicht möchte, nimmt eine eigene Adresse (z. B. Symcon Connect) als Redirect-URI.
+- Netz- und Serverfehler (Zeitüberschreitung, HTTP 5xx, 429) lassen das Konto aktiv; die Geräte versuchen es beim nächsten Abruf einfach wieder. Nur eine abgelehnte Anmeldung setzt das Konto auf Fehler.
 - Das Konto reicht für Kind-Instanzen nur `GET`/`POST` auf `devices`, `locations` und `rooms` durch.
 - Die Kachel setzt alle Texte per `textContent`; Kacheldaten werden mit `JSON_HEX_*` eingebettet.
 - Je Gerät zwei Anfragen pro Abruf (Zustand und Online-Status). Bei offener Tür wird höchstens alle 30 Sekunden nachgesehen, damit der Türalarm pünktlich kommt. Werte und Kachel werden nur bei Änderung geschrieben.
@@ -169,6 +171,7 @@ php tests/stubs.php ../SymconStubs
 
 | Version | Build | Datum | Beschreibung |
 | :-- | --: | :-- | :-- |
+| 1.1 | 6 | 07.10.2026 | Kurzer Netz- oder Serverausfall legt die Geräte nicht mehr bis zur nächsten Token-Erneuerung still (Konto bleibt aktiv); schnelle Abfrage bei offener Tür bleibt erhalten; Geräte-ID ohne Leerzeichen in Adressen; Leistung/Energie aus powerMeter/energyMeter haben Vorrang vor dem Verbrauchsbericht (kein Springen der Werte); Kachel zeigt nach abgelehntem Befehl wieder den echten Zustand; Hinweis zu httpbin.org im README |
 | 1.0 | 5 | 07.10.2026 | Kachel: mehr Abstand zum Symcon-Titel, Fachnamen lesbar (Tür in schmalen Fächern nur als Symbol), interne Modellkennungen ausgeblendet |
 | 1.0 | 4 | 07.10.2026 | Kachel lässt oben Platz für Titel und Symbole der Symcon-App (keine Überlagerung mehr), eigener Name entfällt |
 | 1.0 | 3 | 07.10.2026 | Abgelehnte Befehle (z. B. Fernseher im Standby einschalten) als Warnung mit Grund statt „Fatal error“; Fehlerdetails von SmartThings im Text |

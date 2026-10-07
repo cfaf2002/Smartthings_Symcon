@@ -355,6 +355,8 @@
 
         function render(d) {
             last = d || {};
+            // Befehl fehlgeschlagen: vorab angezeigte Solltemperaturen verwerfen
+            if (d.resync) pending = {};
             applyTheme(d.theme);
 
             var cls = [];

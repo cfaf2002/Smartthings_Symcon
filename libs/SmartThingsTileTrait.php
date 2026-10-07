@@ -26,15 +26,22 @@ trait SmartThingsTileTrait
         return str_replace('/*INITIAL_DATA*/null', $json, $html);
     }
 
-    private function PushTile(): void
+    /**
+     * Schickt geänderte Kacheldaten. $Force: auch unverändert senden und vorab angezeigte Werte
+     * der Kachel verwerfen (nach einem fehlgeschlagenen Befehl).
+     */
+    private function PushTile(bool $Force = false): void
     {
-        $json = (string) json_encode($this->TileData(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-        if ($json === $this->ReadAttributeString('TileData')) {
+        $data = $this->TileData();
+        $json = (string) json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        if ($json === $this->ReadAttributeString('TileData') && !$Force) {
             return;
         }
         $this->WriteAttributeString('TileData', $json);
         if ($this->ReadPropertyBoolean('UseTile')) {
-            $this->UpdateVisualizationValue($json);
+            $this->UpdateVisualizationValue($Force
+                ? (string) json_encode($data + ['resync' => true], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)
+                : $json);
         }
     }
 

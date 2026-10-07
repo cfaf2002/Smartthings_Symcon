@@ -25,7 +25,6 @@ class SmartThingsKonto extends IPSModuleStrict
 
     private const STATUS_SIGN_IN = 201;
     private const STATUS_AUTH_FAILED = 202;
-    private const STATUS_NO_CONNECTION = 203;
 
     public function Create(): void
     {
@@ -281,13 +280,13 @@ class SmartThingsKonto extends IPSModuleStrict
             $result['Data']['_links'] = $more['Data']['_links'] ?? [];
         }
 
+        // Netz- und Serverfehler (Zeitüberschreitung, 5xx, 429) ändern den Status nicht: sonst legt
+        // HasActiveParent() alle Geräte still, und nur eine erfolgreiche Anfrage holte sie zurück.
         if ($result['Success']) {
             $this->WriteAttributeString('LastError', '');
             if ($this->GetStatus() !== 102) {
                 $this->SetStatus(102);
             }
-        } elseif ($result['Code'] === 0) {
-            $this->SetStatus(self::STATUS_NO_CONNECTION);
         } elseif ($result['Code'] === 401) {
             $this->SetStatus($this->ReadPropertyInteger('AuthMode') === self::MODE_OAUTH ? self::STATUS_AUTH_FAILED : 104);
         }
@@ -348,7 +347,7 @@ class SmartThingsKonto extends IPSModuleStrict
         $raw = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         if ($raw === false) {
-            $this->SetStatus(self::STATUS_NO_CONNECTION);
+            // Netzfehler: Anmeldung bleibt gültig, beim nächsten Abruf erneut versuchen
             return $this->Fail(curl_error($ch));
         }
         $data = json_decode((string) $raw, true);

@@ -150,12 +150,15 @@ class SmartThingsGeraet extends IPSModuleStrict
                 // Kachel: Solltemperatur um einen Schritt ändern ("Ident:+1")
                 [$ident, $delta] = array_pad(explode(':', (string) $Value, 2), 2, '0');
                 $meta = $this->Meta()[$ident] ?? null;
-                if ($meta !== null && $meta['kind'] === 'setpoint' && $this->VariableExists($ident)) {
-                    $this->Command($ident, (float) $this->GetValue($ident) + ((float) $delta > 0 ? 1 : -1));
+                if ($meta !== null && $meta['kind'] === 'setpoint' && $this->VariableExists($ident)
+                    && !$this->Command($ident, (float) $this->GetValue($ident) + ((float) $delta > 0 ? 1 : -1))) {
+                    $this->PushTile(true);
                 }
                 return;
         }
         if (!$this->Command($Ident, $Value)) {
+            // Kachel zeigt den Wert schon vorab: echten Stand zurückschicken
+            $this->PushTile(true);
             // Warnung statt Abbruch: Bedienung in Kachel und Visualisierung bleibt ruhig, der Grund steht im Meldungsfenster
             trigger_error($this->CommandError($Ident), E_USER_WARNING);
         }
@@ -189,7 +192,7 @@ class SmartThingsGeraet extends IPSModuleStrict
         if (!$this->ValidDeviceID()) {
             return false;
         }
-        $id = $this->ReadPropertyString('DeviceID');
+        $id = $this->DeviceID();
         $status = $this->Api('GET', 'devices/' . $id . '/status');
         if (!$status['Success'] || !is_array($status['Data']['components'] ?? null)) {
             $this->SetStatus($status['Code'] === 404 ? 202 : 201);
@@ -203,11 +206,12 @@ class SmartThingsGeraet extends IPSModuleStrict
         $online = !$health['Success'] || strtoupper((string) ($health['Data']['state'] ?? 'ONLINE')) !== 'OFFLINE';
         $this->SetValueIfChanged('Online', $online);
 
+        // Normales Intervall vor dem Auswerten: der Türalarm verkürzt es bei offener Tür wieder
+        $this->SetTimerInterval('Update', max(15, $this->ReadPropertyInteger('Interval')) * 1000);
         $this->Apply($status['Data']['components']);
         if ($this->GetStatus() !== 102) {
             $this->SetStatus(102);
         }
-        $this->SetTimerInterval('Update', max(15, $this->ReadPropertyInteger('Interval')) * 1000);
         $this->PushTile();
         return true;
     }
@@ -232,7 +236,7 @@ class SmartThingsGeraet extends IPSModuleStrict
         if (!$this->ValidDeviceID()) {
             return '{}';
         }
-        $status = $this->Api('GET', 'devices/' . $this->ReadPropertyString('DeviceID') . '/status');
+        $status = $this->Api('GET', 'devices/' . $this->DeviceID() . '/status');
         return (string) json_encode($status['Success'] ? $status['Data'] : ['error' => $status['Error']], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
@@ -278,6 +282,13 @@ class SmartThingsGeraet extends IPSModuleStrict
                     if ($kind === 'report') {
                         // powerConsumptionReport: {power (W), energy (Wh)}
                         $report = is_array($entry['value']) ? $entry['value'] : [];
+                        // Gleiche Idents wie powerMeter/energyMeter: dort gemessene Werte haben Vorrang
+                        if (isset($capabilities['powerMeter']) && !in_array('powerMeter', $disabled, true)) {
+                            unset($report['power']);
+                        }
+                        if (isset($capabilities['energyMeter']) && !in_array('energyMeter', $disabled, true)) {
+                            unset($report['energy']);
+                        }
                         if (is_numeric($report['power'] ?? null)) {
                             $found[STH::Ident($component, 'Power')] = $this->Entry($component, 'powerConsumptionReport', 'powerConsumption', 'power', 'Power consumption', $base + 60, (float) $report['power'], 'W');
                         }
@@ -528,7 +539,7 @@ class SmartThingsGeraet extends IPSModuleStrict
 
     private function Execute(string $component, string $capability, string $command, array $arguments): bool
     {
-        $result = $this->Api('POST', 'devices/' . $this->ReadPropertyString('DeviceID') . '/commands', [
+        $result = $this->Api('POST', 'devices/' . $this->DeviceID() . '/commands', [
             'commands' => [[
                 'component'  => $component,
                 'capability' => $capability,
@@ -585,7 +596,7 @@ class SmartThingsGeraet extends IPSModuleStrict
 
     private function LoadDevice(): void
     {
-        $result = $this->Api('GET', 'devices/' . $this->ReadPropertyString('DeviceID'));
+        $result = $this->Api('GET', 'devices/' . $this->DeviceID());
         if ($result['Success'] && is_array($result['Data'])) {
             $device = array_intersect_key($result['Data'], array_flip(['deviceId', 'name', 'label', 'manufacturerName', 'deviceTypeName', 'ocf', 'components']));
             if (isset($device['ocf']) && is_array($device['ocf'])) {
@@ -612,9 +623,14 @@ class SmartThingsGeraet extends IPSModuleStrict
         return json_decode($this->ReadAttributeString('Meta'), true) ?: [];
     }
 
+    private function DeviceID(): string
+    {
+        return trim($this->ReadPropertyString('DeviceID'));
+    }
+
     private function ValidDeviceID(): bool
     {
-        return (bool) preg_match('/^[A-Za-z0-9-]{8,64}$/', trim($this->ReadPropertyString('DeviceID')));
+        return (bool) preg_match('/^[A-Za-z0-9-]{8,64}$/', $this->DeviceID());
     }
 
     private function Timestamp(string $iso): int
