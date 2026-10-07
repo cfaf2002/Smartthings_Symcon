@@ -110,7 +110,7 @@ trait SmartThingsTileTrait
         return [
             'theme'        => $this->ReadPropertyInteger('TileTheme'),
             'name'         => (string) ($device['label'] ?? $device['name'] ?? 'SmartThings'),
-            'model'        => (string) ($device['ocf']['modelNumber'] ?? ''),
+            'model'        => $this->ReadableModel((string) ($device['ocf']['modelNumber'] ?? '')),
             'online'       => $online === null ? null : (bool) $online,
             'error'        => $error,
             'compartments' => array_values($compartments),
@@ -119,6 +119,16 @@ trait SmartThingsTileTrait
             'doorAlarm'    => (bool) ($value('DoorAlarm') ?? false),
             'openFor'      => (int) $this->GetBuffer('OpenFor'),
         ];
+    }
+
+    /**
+     * Modellnummer nur anzeigen, wenn sie lesbar ist (z. B. RB38C7B6AS9); interne Kennungen wie
+     * „25K_REF_LCD_FHUB10.0|7067144…“ bleiben weg.
+     */
+    private function ReadableModel(string $model): string
+    {
+        $model = trim($model);
+        return preg_match('/^[A-Za-z0-9][A-Za-z0-9 .\/-]{2,23}$/', $model) && !str_contains($model, '_') ? $model : '';
     }
 
     private function TileText(string $kind, mixed $v, string $unit): string

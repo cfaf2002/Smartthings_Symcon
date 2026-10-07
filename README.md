@@ -2,7 +2,7 @@
 
 [![IP-Symcon ab 8.1](https://img.shields.io/badge/IP--Symcon-ab_8.1-0b6fb3.svg)](https://www.symcon.de)
 [![Optimiert für Symcon 9.0](https://img.shields.io/badge/optimiert_f%C3%BCr-Symcon_9.0-0b6fb3.svg)](https://www.symcon.de/de/service/dokumentation/installation/migrationen/v81-v90-q1-2026/)
-[![Modul-Version 1.0 (Build 4)](https://img.shields.io/badge/Modul--Version-1.0_(Build_4)-informational.svg)](library.json)
+[![Modul-Version 1.0 (Build 5)](https://img.shields.io/badge/Modul--Version-1.0_(Build_5)-informational.svg)](library.json)
 [![Tests](https://github.com/cfaf2002/Smartthings_Symcon/actions/workflows/tests.yml/badge.svg)](https://github.com/cfaf2002/Smartthings_Symcon/actions/workflows/tests.yml)
 [![PHP 8.3 und 8.5](https://img.shields.io/badge/PHP-8.3_%7C_8.5-777bb4.svg?logo=php&logoColor=white)](https://www.php.net)
 [![SDK: IPSModuleStrict](https://img.shields.io/badge/SDK-IPSModuleStrict-success.svg)](https://www.symcon.de/de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/module/)
@@ -169,6 +169,7 @@ php tests/stubs.php ../SymconStubs
 
 | Version | Build | Datum | Beschreibung |
 | :-- | --: | :-- | :-- |
+| 1.0 | 5 | 07.10.2026 | Kachel: mehr Abstand zum Symcon-Titel, Fachnamen lesbar (Tür in schmalen Fächern nur als Symbol), interne Modellkennungen ausgeblendet |
 | 1.0 | 4 | 07.10.2026 | Kachel lässt oben Platz für Titel und Symbole der Symcon-App (keine Überlagerung mehr), eigener Name entfällt |
 | 1.0 | 3 | 07.10.2026 | Abgelehnte Befehle (z. B. Fernseher im Standby einschalten) als Warnung mit Grund statt „Fatal error“; Fehlerdetails von SmartThings im Text |
 | 1.0 | 2 | 07.10.2026 | Anmeldeadresse als Feld zum Kopieren statt Link-Knopf (Windows meldete „Holen Sie sich eine App“); Adresse bleibt bis zur Anmeldung gleich |
