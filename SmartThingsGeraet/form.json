@@ -43,6 +43,84 @@
         },
         {
             "type": "ExpansionPanel",
+            "caption": "Vacation mode",
+            "items": [
+                {
+                    "type": "Label",
+                    "name": "VacationIntro",
+                    "caption": "Samsung's own vacation mode cannot be switched via the SmartThings API. The module imitates it: while the vacation switch of the house is on, it switches off the ice maker and Power Cool/Power Freeze and sets the fridge to an economical target. On return it sets back everything it changed. The freezer stays as it is."
+                },
+                {
+                    "type": "Label",
+                    "name": "VacationNotFridge",
+                    "caption": "Only for refrigerators: this device has no fridge, freezer or ice maker.",
+                    "visible": false
+                },
+                {
+                    "type": "Select",
+                    "name": "VacationMode",
+                    "caption": "Vacation mode",
+                    "options": [
+                        {
+                            "caption": "Off",
+                            "value": 0
+                        },
+                        {
+                            "caption": "On – follow the vacation switch of the house",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "VacationVariableID",
+                    "caption": "Vacation switch of the house",
+                    "width": "400px",
+                    "validVariableTypes": [
+                        0,
+                        1
+                    ]
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "VacationInvert",
+                    "caption": "Inverted (off = vacation)"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "VacationFridgeSetpoint",
+                    "caption": "Fridge target during vacation (0 = do not change, 99 = highest value of the device)",
+                    "digits": 0,
+                    "minimum": 0,
+                    "maximum": 99,
+                    "width": "420px"
+                },
+                {
+                    "type": "Label",
+                    "name": "VacationRange",
+                    "caption": "",
+                    "visible": false
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "VacationIcemakerOff",
+                    "caption": "Switch off the ice maker"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "VacationPowerOff",
+                    "caption": "Switch off Power Cool / Power Freeze (rapid cooling and freezing)"
+                },
+                {
+                    "type": "Label",
+                    "name": "VacationInfo",
+                    "caption": "",
+                    "visible": false
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
             "caption": "Tile",
             "items": [
                 {
@@ -82,6 +160,52 @@
             "type": "Button",
             "caption": "Show raw data",
             "onClick": "echo STH_GetRawStatus($id);"
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Show device capabilities",
+            "items": [
+                {
+                    "type": "Label",
+                    "caption": "All components and capabilities from the last query – shows whether the model reports its own vacation capability (highlighted)."
+                },
+                {
+                    "type": "Label",
+                    "name": "CapabilityEmpty",
+                    "caption": "Not queried yet – click \"Query again\".",
+                    "visible": false
+                },
+                {
+                    "type": "List",
+                    "name": "CapabilityList",
+                    "rowCount": 12,
+                    "add": false,
+                    "delete": false,
+                    "columns": [
+                        {
+                            "caption": "Component",
+                            "name": "component",
+                            "width": "180px"
+                        },
+                        {
+                            "caption": "Capability",
+                            "name": "capability",
+                            "width": "auto"
+                        },
+                        {
+                            "caption": "Note",
+                            "name": "note",
+                            "width": "340px"
+                        }
+                    ],
+                    "values": []
+                },
+                {
+                    "type": "Button",
+                    "caption": "Query again",
+                    "onClick": "IPS_RequestAction($id, 'Capabilities', 0);"
+                }
+            ]
         }
     ],
     "status": [

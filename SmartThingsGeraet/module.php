@@ -66,6 +66,11 @@ class SmartThingsGeraet extends IPSModuleStrict
         'activated' => ['activate', 'deactivate'],
     ];
 
+    // Urlaubsbetrieb: Komponenten eines Kühlschranks, Eiswürfelbereiter und Schnellkühlen/-gefrieren
+    private const FRIDGE_COMPONENTS = ['cooler', 'freezer', 'icemaker', 'icemaker-02'];
+    private const ICEMAKERS = ['icemaker', 'icemaker-02'];
+    private const BOOST = ['samsungce.powerCool', 'samsungce.powerFreeze', 'refrigeration'];
+
     public function Create(): void
     {
         parent::Create();
@@ -77,12 +82,22 @@ class SmartThingsGeraet extends IPSModuleStrict
         $this->RegisterPropertyBoolean('UseTile', true);
         $this->RegisterPropertyInteger('TileTheme', 0);
 
+        // Urlaubsbetrieb (ab Werk aus)
+        $this->RegisterPropertyInteger('VacationMode', 0);
+        $this->RegisterPropertyInteger('VacationVariableID', 0);
+        $this->RegisterPropertyBoolean('VacationInvert', false);
+        $this->RegisterPropertyFloat('VacationFridgeSetpoint', 99.0);
+        $this->RegisterPropertyBoolean('VacationIcemakerOff', true);
+        $this->RegisterPropertyBoolean('VacationPowerOff', true);
+
         $this->RegisterAttributeString('Meta', '{}');
         $this->RegisterAttributeString('Signature', '');
         $this->RegisterAttributeString('Device', '{}');
         $this->RegisterAttributeString('Unmapped', '[]');
         $this->RegisterAttributeString('OpenSince', '{}');
         $this->RegisterAttributeString('TileData', '{}');
+        $this->RegisterAttributeString('Capabilities', '{}');
+        $this->RegisterAttributeString('Vacation', '{}');
 
         $this->RegisterTimer('Update', 0, 'STH_Update($_IPS[\'TARGET\']);');
     }
@@ -108,6 +123,33 @@ class SmartThingsGeraet extends IPSModuleStrict
             ]),
         ], 1, true);
 
+        // Urlaubsbetrieb: Urlaubsschalter überwachen, Status nur bei eingeschaltetem Urlaubsbetrieb
+        $vacationMode = $this->ReadPropertyInteger('VacationMode') === 1;
+        foreach ($this->GetMessageList() as $sender => $messages) {
+            if ($sender !== 0 && in_array(VM_UPDATE, $messages, true)) {
+                $this->UnregisterMessage($sender, VM_UPDATE);
+            }
+        }
+        foreach ($this->GetReferenceList() as $reference) {
+            $this->UnregisterReference($reference);
+        }
+        $vacationID = $this->ReadPropertyInteger('VacationVariableID');
+        if ($vacationMode && $vacationID > 0 && IPS_VariableExists($vacationID)) {
+            $this->RegisterMessage($vacationID, VM_UPDATE);
+            $this->RegisterReference($vacationID);
+        }
+        $this->MaintainVariable('Vacation', $this->Translate('Vacation mode'), VARIABLETYPE_BOOLEAN, [
+            'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION,
+            'ICON'         => 'plane',
+            'OPTIONS'      => json_encode([
+                ['Value' => false, 'Caption' => $this->Translate('normal operation'), 'IconActive' => true, 'IconValue' => 'house', 'ColorActive' => false, 'ColorValue' => -1],
+                ['Value' => true, 'Caption' => $this->Translate('vacation'), 'IconActive' => true, 'IconValue' => 'plane', 'ColorActive' => true, 'ColorValue' => 0x4B8EF0],
+            ]),
+        ], 2, $vacationMode);
+        if ($vacationMode) {
+            $this->SetValueIfChanged('Vacation', (bool) ($this->VacationState()['active']));
+        }
+
         // Variablen beim nächsten Abruf neu anlegen (Übersetzung, Türalarm)
         $this->WriteAttributeString('Signature', '');
 
@@ -130,8 +172,12 @@ class SmartThingsGeraet extends IPSModuleStrict
     public function MessageSink(int $TimeStamp, int $SenderID, int $Message, array $Data): void
     {
         if ($Message === IPS_KERNELSTARTED && $this->ValidDeviceID()) {
+            // Update gleicht auch den Urlaubsbetrieb ab
             $this->LoadDevice();
             $this->Update();
+        }
+        if ($Message === VM_UPDATE && $SenderID === $this->ReadPropertyInteger('VacationVariableID')) {
+            $this->VacationSync();
         }
     }
 
@@ -145,6 +191,11 @@ class SmartThingsGeraet extends IPSModuleStrict
         switch ($Ident) {
             case 'Refresh':
                 $this->Update();
+                return;
+            case 'Capabilities':
+                // Formular: Fähigkeiten neu abfragen und Liste auffrischen
+                $this->Update();
+                $this->UpdateFormField('CapabilityList', 'values', (string) json_encode($this->CapabilityRows()));
                 return;
             case 'Step':
                 // Kachel: Solltemperatur um einen Schritt ändern ("Ident:+1")
@@ -176,6 +227,12 @@ class SmartThingsGeraet extends IPSModuleStrict
         if ($unmapped !== []) {
             $this->InjectProperty($form['elements'], 'UnmappedLabel', 'caption', $this->Translate('Further capabilities without variable') . ': ' . implode(', ', $unmapped));
             $this->InjectProperty($form['elements'], 'UnmappedLabel', 'visible', true);
+        }
+        $this->VacationForm($form);
+        $rows = $this->CapabilityRows();
+        $this->InjectProperty($form['actions'], 'CapabilityList', 'values', $rows);
+        if ($rows === []) {
+            $this->InjectProperty($form['actions'], 'CapabilityEmpty', 'visible', true);
         }
         return (string) json_encode($form);
     }
@@ -212,6 +269,8 @@ class SmartThingsGeraet extends IPSModuleStrict
         if ($this->GetStatus() !== 102) {
             $this->SetStatus(102);
         }
+        // Urlaubsbetrieb abgleichen; was zuvor nicht ankam (Gerät offline), wird hier erneut versucht
+        $this->VacationSync();
         $this->PushTile();
         return true;
     }
@@ -248,6 +307,7 @@ class SmartThingsGeraet extends IPSModuleStrict
     {
         $found = [];
         $unmapped = [];
+        $inventory = [];
         $order = array_keys(self::COMPONENTS);
 
         foreach ($components as $component => $capabilities) {
@@ -261,6 +321,14 @@ class SmartThingsGeraet extends IPSModuleStrict
 
             foreach ($capabilities as $capability => $attributes) {
                 $capability = (string) $capability;
+                if (preg_match('/^[A-Za-z0-9._-]{1,80}$/', $capability)) {
+                    $inventory[$component][$capability] = in_array($capability, $disabled, true) ? 'disabled' : (isset(self::MAP[$capability]) ? 'mapped' : '');
+                    if (stripos($capability, 'vacation') !== false) {
+                        // Eigene Urlaubs-Fähigkeit des Geräts? Nur melden – die Befehle dazu sind nicht dokumentiert
+                        $inventory[$component][$capability] = 'vacation';
+                        $this->SendDebug('Vacation capability', $component . '/' . $capability . ' ' . json_encode($attributes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0);
+                    }
+                }
                 if (in_array($capability, $disabled, true) || !is_array($attributes)) {
                     continue;
                 }
@@ -317,6 +385,10 @@ class SmartThingsGeraet extends IPSModuleStrict
         $unmappedList = array_keys($unmapped);
         sort($unmappedList);
         $this->WriteAttributeString('Unmapped', (string) json_encode($unmappedList));
+        $inventoryJson = (string) json_encode($inventory);
+        if ($inventoryJson !== $this->ReadAttributeString('Capabilities')) {
+            $this->WriteAttributeString('Capabilities', $inventoryJson);
+        }
     }
 
     /**
@@ -497,6 +569,273 @@ class SmartThingsGeraet extends IPSModuleStrict
             'text'     => ['PRESENTATION' => $value, 'ICON' => 'filter'],
             default    => ['PRESENTATION' => $value, 'DIGITS' => 1, 'SUFFIX' => $item['unit'] !== '' ? ' ' . $item['unit'] : ''],
         };
+    }
+
+    // ------------------------------------------------------------------
+    // Urlaubsbetrieb
+    // ------------------------------------------------------------------
+
+    /**
+     * Gleicht den Urlaubsbetrieb mit dem Urlaubsschalter ab. Beim Wechsel auf Urlaub wird gesichert,
+     * was das Modul umstellt (Wert vorher und gesetzter Wert), bei Rückkehr nur das zurückgestellt,
+     * was noch auf dem gesetzten Wert steht – manuelle Änderungen im Urlaub bleiben. Befehle, die nicht
+     * ankommen (Gerät offline), wartet das Modul bis zum nächsten Abruf ab; es gibt keine Schleife.
+     */
+    private function VacationSync(): void
+    {
+        $state = $this->VacationState();
+        $wanted = $this->ReadPropertyInteger('VacationMode') === 1 && $this->VacationSwitch();
+        if (!$wanted && !$state['active'] && $state['items'] === []) {
+            $this->SetValueIfChanged('Vacation', false);
+            return;
+        }
+        if (!$this->ValidDeviceID()) {
+            return;
+        }
+        $before = (string) json_encode($state);
+        $meta = $this->Meta();
+        if ($wanted && !$state['active']) {
+            $state = ['active' => true, 'since' => time(), 'planned' => false, 'items' => $state['items']];
+            $this->SendDebug('Vacation', 'Urlaub beginnt', 0);
+        }
+        if ($wanted && !$state['planned'] && $meta !== []) {
+            foreach ($this->VacationPlan($meta) as $ident => $target) {
+                // Eintrag aus einer unterbrochenen Rückkehr behält seinen gesicherten Wert
+                $state['items'][$ident] ??= ['before' => $this->GetValue($ident), 'target' => $target, 'done' => false];
+            }
+            $state['planned'] = true;
+            $this->SendDebug('Vacation', 'Gesichert: ' . json_encode($state['items']), 0);
+        }
+        if (!$wanted && $state['active']) {
+            $state['active'] = false;
+            $this->SendDebug('Vacation', 'Rückkehr aus dem Urlaub', 0);
+        }
+
+        // Gerät offline: nichts senden, beim nächsten Abruf erneut versuchen
+        $online = !$this->VariableExists('Online') || $this->GetValue('Online') !== false;
+        foreach ($state['items'] as $ident => $item) {
+            $exists = isset($meta[$ident]) && $this->VariableExists($ident);
+            if ($wanted) {
+                if ($item['done'] || !$exists || !$online) {
+                    continue;
+                }
+                if ($this->Command($ident, $item['target'])) {
+                    $state['items'][$ident]['done'] = true;
+                } else {
+                    $this->SendDebug('Vacation', $ident . ': nicht angekommen, nächster Versuch beim nächsten Abruf', 0);
+                }
+                continue;
+            }
+            if (!$item['done'] || !$exists) {
+                // nie umgestellt (oder Fähigkeit weg): nichts zurückzustellen
+                unset($state['items'][$ident]);
+                continue;
+            }
+            if (!$this->SameValue($this->GetValue($ident), $item['target'])) {
+                $this->SendDebug('Vacation', $ident . ': im Urlaub manuell geändert, bleibt so', 0);
+                unset($state['items'][$ident]);
+                continue;
+            }
+            if (!$online) {
+                continue;
+            }
+            if ($this->Command($ident, $item['before'])) {
+                unset($state['items'][$ident]);
+            } else {
+                $this->SendDebug('Vacation', $ident . ': Zurückstellen nicht angekommen, nächster Versuch beim nächsten Abruf', 0);
+            }
+        }
+
+        $json = $state['active'] || $state['items'] !== [] ? (string) json_encode($state) : '{}';
+        if ($json !== $this->ReadAttributeString('Vacation')) {
+            $this->WriteAttributeString('Vacation', $json);
+        }
+        if ($json === '{}' && $before !== $json) {
+            $this->SendDebug('Vacation', 'Normalbetrieb wiederhergestellt', 0);
+        }
+        $this->SetValueIfChanged('Vacation', $state['active']);
+        $this->PushTile();
+    }
+
+    /**
+     * Was im Urlaub umgestellt wird: Ident => Zielwert. Nur Werte, die sich wirklich ändern;
+     * das Gefrierteil bleibt unverändert.
+     */
+    private function VacationPlan(array $meta): array
+    {
+        $plan = [];
+        $setpoint = $this->ReadPropertyFloat('VacationFridgeSetpoint');
+        foreach ($meta as $ident => $item) {
+            if (!$this->VariableExists((string) $ident)) {
+                continue;
+            }
+            $current = $this->GetValue((string) $ident);
+            if ($item['kind'] === 'setpoint' && $item['component'] === 'cooler') {
+                if ($setpoint == 0.0) {
+                    continue;
+                }
+                // Werte über dem Gerätebereich (Standard 99) = Höchstwert des Kühlteils
+                $target = max((float) ($item['min'] ?? -50), min((float) ($item['max'] ?? 50), round($setpoint)));
+                if (!$this->SameValue($current, $target)) {
+                    $plan[$ident] = $target;
+                }
+            } elseif ($item['kind'] === 'switch' && in_array($item['component'], self::ICEMAKERS, true)) {
+                if ($this->ReadPropertyBoolean('VacationIcemakerOff') && $current === true) {
+                    $plan[$ident] = false;
+                }
+            } elseif (in_array($item['capability'], self::BOOST, true) && in_array($item['kind'], ['activated', 'onoff'], true)) {
+                if ($this->ReadPropertyBoolean('VacationPowerOff') && $current === true) {
+                    $plan[$ident] = false;
+                }
+            }
+        }
+        return $plan;
+    }
+
+    /**
+     * Urlaubsschalter des Hauses: Boolean an bzw. Integer ≠ 0 = Urlaub, auf Wunsch invertiert.
+     */
+    private function VacationSwitch(): bool
+    {
+        $id = $this->ReadPropertyInteger('VacationVariableID');
+        if ($id <= 0 || !IPS_VariableExists($id)) {
+            return false;
+        }
+        $raw = GetValue($id);
+        $on = is_bool($raw) ? $raw : (is_numeric($raw) && (int) $raw !== 0);
+        return $on !== $this->ReadPropertyBoolean('VacationInvert');
+    }
+
+    /**
+     * Gespeicherter Urlaubsstand: active, since, planned, items (Ident => before, target, done).
+     */
+    private function VacationState(): array
+    {
+        $state = json_decode($this->ReadAttributeString('Vacation'), true);
+        $state = is_array($state) ? $state : [];
+        return [
+            'active'  => (bool) ($state['active'] ?? false),
+            'since'   => (int) ($state['since'] ?? 0),
+            'planned' => (bool) ($state['planned'] ?? false),
+            'items'   => is_array($state['items'] ?? null) ? $state['items'] : [],
+        ];
+    }
+
+    private function SameValue(mixed $a, mixed $b): bool
+    {
+        if (is_bool($a) || is_bool($b)) {
+            return $a === $b;
+        }
+        return is_numeric($a) && is_numeric($b) && abs((float) $a - (float) $b) < 0.05;
+    }
+
+    /**
+     * Kurzer Hinweis für die Kachel; null, solange kein Urlaub ist.
+     */
+    private function VacationTile(): ?array
+    {
+        $state = $this->VacationState();
+        if (!$state['active'] && $state['items'] === []) {
+            return null;
+        }
+        $pending = count(array_filter($state['items'], static fn (array $i): bool => $state['active'] ? !$i['done'] : true));
+        return [
+            'on'      => $state['active'],
+            'pending' => $pending > 0,
+            'text'    => $this->Translate(match (true) {
+                $state['active'] && $pending === 0 => 'Vacation mode active',
+                $state['active']                   => 'Vacation mode: waiting for the device',
+                default                            => 'Back from vacation: waiting for the device',
+            }),
+        ];
+    }
+
+    /**
+     * Formular: Abschnitt Urlaubsbetrieb nur bei Kühlschränken, dazu aktueller Stand.
+     */
+    private function VacationForm(array &$form): void
+    {
+        $inventory = json_decode($this->ReadAttributeString('Capabilities'), true) ?: [];
+        if ($inventory !== [] && array_intersect(array_keys($inventory), self::FRIDGE_COMPONENTS) === []) {
+            foreach (['VacationMode', 'VacationVariableID', 'VacationInvert', 'VacationFridgeSetpoint', 'VacationIcemakerOff', 'VacationPowerOff'] as $name) {
+                $this->InjectProperty($form['elements'], $name, 'visible', false);
+            }
+            $this->InjectProperty($form['elements'], 'VacationNotFridge', 'visible', true);
+            return;
+        }
+        $setpoint = $this->Meta()['cooler_Setpoint'] ?? null;
+        if (is_array($setpoint) && isset($setpoint['min'], $setpoint['max'])) {
+            $this->InjectProperty($form['elements'], 'VacationRange', 'caption', sprintf(
+                $this->Translate('Fridge range of this device: %s to %s %s'),
+                number_format((float) $setpoint['min'], 0),
+                number_format((float) $setpoint['max'], 0),
+                (string) $setpoint['unit']
+            ));
+            $this->InjectProperty($form['elements'], 'VacationRange', 'visible', true);
+        }
+        if ($this->ReadPropertyInteger('VacationMode') !== 1) {
+            return;
+        }
+        $state = $this->VacationState();
+        $id = $this->ReadPropertyInteger('VacationVariableID');
+        $lines = [];
+        $lines[] = $id > 0 && IPS_VariableExists($id)
+            ? sprintf($this->Translate('Vacation switch now: %s → %s'), (string) @GetValueFormatted($id), $this->Translate($this->VacationSwitch() ? 'vacation' : 'no vacation'))
+            : $this->Translate('Please choose the vacation switch of the house.');
+        if ($state['active']) {
+            $lines[] = sprintf($this->Translate('Vacation mode active since %s'), date('d.m.Y H:i', $state['since']));
+        }
+        $meta = $this->Meta();
+        foreach ($state['items'] as $ident => $item) {
+            $m = $meta[$ident] ?? null;
+            $label = $m === null ? (string) $ident : (($m['prefix'] !== '' ? $this->Translate((string) $m['prefix']) . ': ' : '') . $this->Translate((string) $m['label']));
+            $lines[] = sprintf(
+                '· %s: %s → %s%s',
+                $label,
+                $this->VacationText($item['before'], $m),
+                $this->VacationText($item['target'], $m),
+                $item['done'] === true ? '' : ' (' . $this->Translate('waiting for the device') . ')'
+            );
+        }
+        $this->InjectProperty($form['elements'], 'VacationInfo', 'caption', implode("\n", $lines));
+        $this->InjectProperty($form['elements'], 'VacationInfo', 'visible', true);
+    }
+
+    private function VacationText(mixed $value, ?array $meta): string
+    {
+        if (is_bool($value)) {
+            return $this->Translate($value ? 'on' : 'off');
+        }
+        return number_format((float) $value, 0) . ($meta !== null && (string) $meta['unit'] !== '' ? ' ' . $meta['unit'] : '');
+    }
+
+    /**
+     * Alle Komponenten und Fähigkeiten aus der letzten Statusabfrage für die Liste im Formular.
+     */
+    private function CapabilityRows(): array
+    {
+        $inventory = json_decode($this->ReadAttributeString('Capabilities'), true) ?: [];
+        $notes = [
+            'mapped'   => 'variable',
+            'disabled' => 'switched off by the device',
+            'vacation' => 'possible vacation capability – commands unknown, not switched',
+        ];
+        $rows = [];
+        foreach ($inventory as $component => $capabilities) {
+            $name = self::COMPONENTS[$component] ?? '';
+            foreach ((array) $capabilities as $capability => $note) {
+                $row = [
+                    'component'  => (string) $component . ($name !== '' ? ' (' . $this->Translate($name) . ')' : ''),
+                    'capability' => (string) $capability,
+                    'note'       => isset($notes[$note]) ? $this->Translate($notes[$note]) : '',
+                ];
+                if ($note === 'vacation') {
+                    $row['rowColor'] = '#FFE9A8';
+                }
+                $rows[] = $row;
+            }
+        }
+        return $rows;
     }
 
     // ------------------------------------------------------------------

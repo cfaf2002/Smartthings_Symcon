@@ -6,6 +6,7 @@
     Aufbau: oben frei für Titel und Symbole von Symcon · Zeile online/offline · Türalarm · Fächer (Kühl-, Gefrierteil …) mit Temperatur,
     Tür und Solltemperatur zum Verstellen · Schalter (Power Cool, Power Freeze, Eiswürfel …) · weitere Werte
     (Akku, Anwesenheit, Verbrauch, Filter …). So passt dieselbe Kachel zu Kühlschrank, Handy und Uhr.
+    Im Urlaubsbetrieb steht unter der Kopfzeile ein kurzer Hinweis (aktiv bzw. wartet auf das Gerät).
     Sicherheit: Alle Werte werden per textContent gesetzt, nie als HTML.
     Leistung:   Keine externen Dateien; die Zeitanzeige beim Türalarm läuft nur, solange die Kachel sichtbar ist.
 -->
@@ -83,6 +84,11 @@
     #tile.paused * { animation-play-state: paused !important; }
     @keyframes blink { 50% { opacity: .35; } }
     #tile.error .notice { display: flex; background: color-mix(in srgb, var(--bad) 16%, transparent); font-weight: 500; }
+    /* Urlaubsbetrieb (Koffer): blau, gelb solange ein Befehl noch nicht beim Gerät angekommen ist */
+    #tile.vacation .vacation { display: flex; background: color-mix(in srgb, var(--info) 16%, transparent); font-weight: 500; }
+    #tile.vacation .vacation svg { color: var(--info); }
+    #tile.vacation.vacation-pending .vacation { background: color-mix(in srgb, var(--warn) 18%, transparent); }
+    #tile.vacation.vacation-pending .vacation svg { color: var(--warn); }
 
     /* Fächer */
     .rooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
@@ -188,6 +194,10 @@
         <span id="alarmText"></span>
     </div>
     <div class="banner notice" id="notice"></div>
+    <div class="banner vacation" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 13h18"/></svg>
+        <span id="vacationText"></span>
+    </div>
 
     <div class="rooms" id="rooms"></div>
     <div class="toggles" id="toggles"></div>
@@ -364,6 +374,8 @@
             if (d.online === false) cls.push('offline');
             if (d.doorAlarm) cls.push('alarm');
             if (d.error) cls.push('error');
+            if (d.vacation) cls.push('vacation');
+            if (d.vacation && d.vacation.pending) cls.push('vacation-pending');
             var nothing = !(d.compartments || []).length && !(d.toggles || []).length && !(d.values || []).length;
             if (nothing && !d.error) cls.push('nothing');
             if ((d.compartments || []).length) cls.push('has-rooms');
@@ -372,6 +384,7 @@
 
             $('sub').textContent = [d.online === false ? t('offline') : (d.online === true ? t('online') : ''), d.model || ''].filter(Boolean).join(' · ');
             $('notice').textContent = d.error || '';
+            $('vacationText').textContent = d.vacation ? (d.vacation.text || '') : '';
 
             openFor = d.openFor || 0;
             openAt = Date.now();

@@ -15,6 +15,7 @@ declare(strict_types=1);
 /**
  * Kachel des SmartThings-Geräts (HTML-SDK). Beim Kühlschrank zeigt sie Kühl- und Gefrierteil mit
  * Temperatur, Solltemperatur und Tür; bei anderen Geräten (Handy, Uhr …) Schalter und Werte.
+ * Im Urlaubsbetrieb zeigt sie einen kurzen Hinweis.
  * Die Kachel bekommt nur Daten (JSON) und baut alles mit textContent auf – kein HTML aus Variablen.
  */
 trait SmartThingsTileTrait
@@ -125,6 +126,7 @@ trait SmartThingsTileTrait
             'values'       => array_values($values),
             'doorAlarm'    => (bool) ($value('DoorAlarm') ?? false),
             'openFor'      => (int) $this->GetBuffer('OpenFor'),
+            'vacation'     => $this->VacationTile(),
         ];
     }
 
